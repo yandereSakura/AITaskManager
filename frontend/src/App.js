@@ -16,7 +16,7 @@ if (!document.head.querySelector('style[data-app-style]')) {
   document.head.appendChild(style);
 }
 
-const API = 'http://localhost:5000/tasks';
+const API = `http://${window.location.hostname}:5000/tasks`;
 const FONT = "'Oswald', 'Arial Black', sans-serif";
 const HEADER_HEIGHT = 94; 
 const STATUS = {
