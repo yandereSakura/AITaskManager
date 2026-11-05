@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Task Manager: вход с MFA</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #cfeeff; display: flex; justify-content: center; padding: 30px; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; width: 380px; box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+  h2 { color: #0140AA; margin-top: 0; }
+  input, button { width: 100%; box-sizing: border-box; padding: 10px; margin: 6px 0; border-radius: 8px; border: 1px solid #9bbbe8; font-size: 15px; }
+  button { background: #03255E; color: #fff; border: none; cursor: pointer; }
+  .msg { margin-top: 10px; font-size: 14px; word-break: break-all; }
+  .err { color: #D30B0B; } .ok { color: #11880F; }
+  img { width: 100%; }
+  hr { margin: 22px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Регистрация</h2>
+  <input id="regUser" placeholder="Имя пользователя">
+  <input id="regPass" type="password" placeholder="Пароль (минимум 6 символов)">
+  <button onclick="registerUser()">Зарегистрироваться</button>
+  <div id="regResult" class="msg"></div>
+
+  <hr>
+
+  <h2>Вход</h2>
+  <div id="step1">
+    <input id="logUser" placeholder="Имя пользователя">
+    <input id="logPass" type="password" placeholder="Пароль">
+    <button onclick="login()">Войти</button>
+  </div>
+  <div id="step2" style="display:none">
+    <input id="code" placeholder="Код из приложения-аутентификатора" maxlength="6">
+    <button onclick="verifyCode()">Подтвердить код</button>
+  </div>
+  <div id="logResult" class="msg"></div>
+</div>
+
+<script>
+let preToken = null;
+
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { ok: r.ok, data: await r.json() };
+}
+
+async function registerUser() {
+  const out = document.getElementById('regResult');
+  const { ok, data } = await post('/auth/register', {
+    username: document.getElementById('regUser').value,
+    password: document.getElementById('regPass').value,
+  });
+  if (!ok) { out.className = 'msg err'; out.textContent = data.error; return; }
+  out.className = 'msg ok';
+  out.innerHTML = 'Пользователь создан! Отсканируйте QR-код в Google Authenticator:' +
+    '<img src="' + data.qr + '"><div>Секрет: ' + data.secret + '</div>';
+}
+
+async function login() {
+  const out = document.getElementById('logResult');
+  const { ok, data } = await post('/auth/login', {
+    username: document.getElementById('logUser').value,
+    password: document.getElementById('logPass').value,
+  });
+  if (!ok) { out.className = 'msg err'; out.textContent = data.error; return; }
+  preToken = data.preToken;
+  document.getElementById('step1').style.display = 'none';
+  document.getElementById('step2').style.display = 'block';
+  out.className = 'msg ok';
+  out.textContent = 'Пароль верный. Введите одноразовый код.';
+}
+
+async function verifyCode() {
+  const out = document.getElementById('logResult');
+  const { ok, data } = await post('/auth/login/mfa', {
+    preToken, code: document.getElementById('code').value,
+  });
+  if (!ok) { out.className = 'msg err'; out.textContent = data.error; return; }
+  const me = await fetch('/auth/me', { headers: { Authorization: 'Bearer ' + data.token } });
+  const user = await me.json();
+  out.className = 'msg ok';
+  out.textContent = 'Вход выполнен. Вы вошли как: ' + user.username;
+}
+</script>
+</body>
+</html>
